@@ -1,0 +1,12 @@
+[package]
+name = "gb_emu"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+# 音频重采样
+blip_buf = "0.1.4"
+lazy_static = "1.4.0"

@@ -1,0 +1,52 @@
+name: fgb_emu
+description: A Gameboy emulator flutter plugin project.
+version: 0.0.1
+homepage:
+
+environment:
+  sdk: ">=2.17.0 <3.0.0"
+  flutter: ">=2.5.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  ffi: ^2.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+  build_runner: ^2.2.0
+  ffigen: ^6.1.2
+
+# The following section is specific to Flutter packages.
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.lee.fgb_emu
+        pluginClass: FgbEmuPlugin
+      ios:
+        pluginClass: FgbEmuPlugin
+
+ffigen:
+  llvm-path:
+    - '/opt/homebrew/opt/llvm'
+  name: 'GbNativeBinding'
+  description: 'Bindings to gameboy native library'
+  output: 'lib/src/native/gb_native_binding.dart'
+  headers:
+    entry-points:
+      - 'native/includes/gb_emu.h'
+  functions:
+    include:
+      - create_emulator
+      - run_emulator
+      - get_window_buffer
+      - press_button
+      - release_button
+      - pause_emulator
+      - resume_emulator
+      - exit_emulator
+      - create_window_config
