@@ -1,2 +1,2 @@
-export 'src/native/gb_emulator.dart';
-export 'src/widgets/gb_lcd.dart';
+export 'src/emulator/gb_emulator.dart';
+export 'src/emulator/gb_lcd.dart';

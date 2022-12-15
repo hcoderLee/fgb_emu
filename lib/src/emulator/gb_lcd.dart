@@ -1,8 +1,9 @@
-import 'package:fgb_emu/src/native/gb_emulator.dart';
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 
 import 'package:flutter/scheduler.dart';
+
+import 'gb_emulator.dart';
 
 /// Gameboy screen
 class GbLCD extends StatefulWidget {

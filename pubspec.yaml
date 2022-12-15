@@ -33,12 +33,13 @@ flutter:
 ffigen:
   llvm-path:
     - '/opt/homebrew/opt/llvm'
-  name: 'GbNativeBinding'
+  name: 'NativeBinding'
   description: 'Bindings to gameboy native library'
-  output: 'lib/src/native/gb_native_binding.dart'
+  output: 'lib/src/ffi/native_binding.dart'
   headers:
     entry-points:
       - 'native/includes/gb_emu.h'
+      - 'native/includes/log.h'
   functions:
     include:
       - create_emulator
@@ -50,3 +51,4 @@ ffigen:
       - resume_emulator
       - exit_emulator
       - create_window_config
+      - init_logger

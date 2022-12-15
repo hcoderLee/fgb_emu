@@ -23,11 +23,14 @@ impl Emulator {
         }
     }
 
+    // This method will called in new thread
     pub fn run(&mut self, rom_path: &str) {
         if self.is_running.load(Ordering::Acquire) {
+            log::warn!("{} is already running", rom_path);
             return;
         }
 
+        log::info!("Running {}", rom_path);
         self.is_running.store(true, Ordering::Release);
         // 主板，用于管理cpu和各种外设
         let mut mbrd = MotherBoard::power_up(&*rom_path);
@@ -93,23 +96,28 @@ impl Emulator {
 
     pub fn pause(&mut self) {
         self.is_pause.store(true, Ordering::Release);
+        log::info!("Pause emulator");
     }
 
     pub fn resume(&mut self, thread: &Thread) {
         self.is_pause.store(false, Ordering::Release);
         thread.unpark();
+        log::info!("Resume emulator");
     }
 
     pub fn exit(&mut self) {
         self.is_running.store(false, Ordering::Release);
+        log::info!("Exit emulator");
     }
 
     pub fn press_button(&mut self, btn: GbBtn) {
         self.keyboard.press_button(btn);
+        log::info!("Press {} button", btn);
     }
 
     pub fn release_button(&mut self, btn: GbBtn) {
         self.keyboard.release_button(btn);
+        log::info!("Release {} button", btn);
     }
 
     pub fn get_window_buffer(&self) -> &Vec<u32> {

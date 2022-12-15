@@ -69,7 +69,7 @@ pub extern "C" fn exit_emulator(emulator: *mut Emulator) {
     unsafe {
         (&mut *emulator).exit();
         // Release emulator object which created by [create_emulator]
-        Box::from_raw(emulator);
+        let _ = Box::from_raw(emulator);
         RUNNING_EMU = None;
     }
 }

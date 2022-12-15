@@ -7,6 +7,13 @@ edition = "2021"
 crate-type = ["staticlib", "cdylib"]
 
 [dependencies]
-# 音频重采样
+# Audio resampling
 blip_buf = "0.1.4"
 lazy_static = "1.4.0"
+
+# Log
+log = "0.4.17"
+# Communicate with flutter
+allo-isolate = "0.1.13"
+# Log color
+yansi = "0.5.1"

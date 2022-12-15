@@ -4,17 +4,17 @@
 import 'dart:ffi' as ffi;
 
 /// Bindings to gameboy native library
-class GbNativeBinding {
+class NativeBinding {
   /// Holds the symbol lookup function.
   final ffi.Pointer<T> Function<T extends ffi.NativeType>(String symbolName)
       _lookup;
 
   /// The symbols are looked up in [dynamicLibrary].
-  GbNativeBinding(ffi.DynamicLibrary dynamicLibrary)
+  NativeBinding(ffi.DynamicLibrary dynamicLibrary)
       : _lookup = dynamicLibrary.lookup;
 
   /// The symbols are looked up with [lookup].
-  GbNativeBinding.fromLookup(
+  NativeBinding.fromLookup(
       ffi.Pointer<T> Function<T extends ffi.NativeType>(String symbolName)
           lookup)
       : _lookup = lookup;
@@ -141,6 +141,22 @@ class GbNativeBinding {
           'exit_emulator');
   late final _exit_emulator =
       _exit_emulatorPtr.asFunction<void Function(ffi.Pointer<Emulator_C>)>();
+
+  void init_logger(
+    int port,
+    ffi.Pointer<ffi.Void> post_c_object,
+  ) {
+    return _init_logger(
+      port,
+      post_c_object,
+    );
+  }
+
+  late final _init_loggerPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(ffi.Int64, ffi.Pointer<ffi.Void>)>>('init_logger');
+  late final _init_logger =
+      _init_loggerPtr.asFunction<void Function(int, ffi.Pointer<ffi.Void>)>();
 }
 
 class __mbstate_t extends ffi.Union {

@@ -5,7 +5,6 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use crate::core::memory::Memory;
 use std::{thread, time};
-use crate::tools::logger::Logger;
 
 // gb的cpu时钟频率
 pub const CLOCK_FREQUENCY: u32 = 4_194_304;
@@ -22,7 +21,6 @@ pub struct RTC {
     step_zero: time::Instant,
     // 是否已重新累计执行的时钟周期
     step_flip: bool,
-    log: Logger,
 }
 
 impl RTC {
@@ -33,7 +31,6 @@ impl RTC {
             step_cycles: 0,
             step_zero: time::Instant::now(),
             step_flip: false,
-            log: Logger::power_up("rtc.txt", false),
         }
     }
 
@@ -65,7 +62,6 @@ impl RTC {
         // 累计cpu执行下一条指令花费的时钟周期
         let cycles = self.cpu.next();
         self.step_cycles += cycles;
-        self.log.i(format!("{}; cycles: {}\n", self.cpu.reg, cycles));
         cycles
     }
 

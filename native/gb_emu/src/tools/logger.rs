@@ -1,35 +1,49 @@
-use std::fs::File;
-use std::io::Write;
+use log::{Level, LevelFilter, Log, Metadata, Record};
+use yansi::Paint;
 
-pub struct Logger {
-    log_file: Option<File>,
-    count: u32,
+/// Custom log implementation, which will send log messages to flutter
+pub struct FLogger {
+    pub isolate: Option<allo_isolate::Isolate>,
 }
 
-impl Logger {
-    pub fn power_up(file_name: &str, enable: bool) -> Self {
-        Self {
-            log_file: if enable { Some(File::create(file_name).unwrap()) } else { None },
-            count: 0,
+impl Log for FLogger {
+    fn enabled(&self, _: &Metadata) -> bool {
+        true
+    }
+
+    fn log(&self, record: &Record) {
+        // Format log message
+        let header = match record.level() {
+            Level::Error => Paint::red("ERROR").bold(),
+            Level::Warn => Paint::yellow("WARN").bold(),
+            Level::Info => Paint::green("INFO").bold(),
+            Level::Debug => Paint::blue("DEBUG").bold(),
+            Level::Trace => Paint::magenta("TRACE").bold(),
+        };
+        let msg = format!("{} {} > {}", header, Paint::new(record.target()), record.args());
+        // Send log message to flutter
+        if let Some(isolate) = self.isolate {
+            isolate.post(msg);
         }
     }
 
-    pub fn i(&mut self, info: String) {
-        if self.log_file.is_none() {
-            return;
-        }
+    fn flush(&self) {}
+}
 
-        let is_record = self.condition();
-        if let Some(f) = &mut self.log_file {
-            if is_record {
-                f.write_all(info.as_bytes()).unwrap();
-            }
-        }
-    }
+pub static mut LOGGER: FLogger = FLogger { isolate: None };
 
-    fn condition(&mut self) -> bool {
-        let is_log = self.count <= 10_0000;
-        self.count += 1;
-        return is_log;
+#[no_mangle]
+pub extern "C" fn init_logger(port: i64, post_c_object: allo_isolate::ffi::DartPostCObjectFnType) {
+    // Create Isolate instance to communicate with flutter
+    let isolate = allo_isolate::Isolate::new(port);
+    unsafe {
+        allo_isolate::store_dart_post_cobject(post_c_object);
     }
+    // Config logger
+    let logger = unsafe { &mut LOGGER };
+    logger.isolate = Some(isolate);
+    // Set our custom log implementation
+    log::set_logger(unsafe { &LOGGER }).expect("Log set logger failed");
+    // Set max log level (All of log messages will be ignored if not set)
+    log::set_max_level(LevelFilter::Trace);
 }

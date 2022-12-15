@@ -1,6 +1,7 @@
+use std::fmt::{Display, Formatter};
 use crate::core::joypad::{JoypadKey};
 
-// Gameboy buttons
+/// Gameboy buttons
 #[derive(Clone, Copy)]
 #[repr(u8)]
 pub enum GbBtn {
@@ -12,6 +13,22 @@ pub enum GbBtn {
     B = 0x20,
     START = 0x40,
     SELECT = 0x80,
+}
+
+impl Display for GbBtn {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let btn_name = match self {
+            GbBtn::LEFT => "Left",
+            GbBtn::UP => "Up",
+            GbBtn::RIGHT => "Right",
+            GbBtn::DOWN => "Down",
+            GbBtn::A => "A",
+            GbBtn::B => "B",
+            GbBtn::START => "Start",
+            GbBtn::SELECT => "Select"
+        };
+        write!(f, "{}", btn_name)
+    }
 }
 
 /// 键盘按键和game boy按键的映射

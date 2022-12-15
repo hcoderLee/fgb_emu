@@ -1,12 +1,13 @@
 import 'dart:async';
-import 'dart:ffi' as ffi;
-import 'dart:io';
 import 'dart:ui' as ui;
+import 'dart:ffi' as ffi;
 
 import 'package:ffi/ffi.dart';
+import 'package:fgb_emu/src/ffi/ffi_binding.dart';
+import 'package:fgb_emu/src/utils/logger.dart';
 import 'package:flutter/material.dart';
 
-import 'gb_native_binding.dart';
+import '../ffi/native_binding.dart';
 
 typedef _NativeEmulator = ffi.Pointer<Emulator_C>;
 
@@ -53,8 +54,6 @@ class GbEmulator {
   /// The emulator screen scale factor according to original size
   late final int _windowScaleFactor;
 
-  late final GbNativeBinding _binding;
-
   /// Emulator screen pixels data, will get update each frame
   ui.Image? _buffer;
 
@@ -63,9 +62,9 @@ class GbEmulator {
   GbEmulator({
     required this.gamePath,
   }) {
+    // Init logger
+    FLogger.init();
     _notifier = GbWindowBufferNotifier();
-    // Load native lib
-    _binding = GbNativeBinding(_load());
     // Calculate window scale factor, width and height
     final screenWidth =
         MediaQueryData.fromWindow(WidgetsBinding.instance.window).size.width;
@@ -75,52 +74,43 @@ class GbEmulator {
     _windowConfig = malloc<WindowConfig>();
     _windowConfig.ref.scale_factor = _windowScaleFactor.toDouble();
     // Create emulator
-    _emulator = _binding.create_emulator(_windowConfig);
-  }
-
-  /// Load native lib according to different platforms
-  ffi.DynamicLibrary _load() {
-    if (Platform.isIOS) {
-      return ffi.DynamicLibrary.process();
-    }
-    const libName = 'libgb_emu.so';
-    return ffi.DynamicLibrary.open(libName);
+    _emulator = FFIBinding.binding.create_emulator(_windowConfig);
   }
 
   void run() {
-    _binding.run_emulator(
+    FFIBinding.binding.run_emulator(
       _emulator,
       gamePath.toNativeUtf8().cast(),
     );
   }
 
   void pause() {
-    _binding.pause_emulator(_emulator);
+    FFIBinding.binding.pause_emulator(_emulator);
   }
 
   void resume() {
-    _binding.resume_emulator(_emulator);
+    FFIBinding.binding.resume_emulator(_emulator);
   }
 
   void exit() {
-    _binding.exit_emulator(_emulator);
+    FFIBinding.binding.exit_emulator(_emulator);
     _buffer?.dispose();
     malloc.free(_windowConfig);
   }
 
   void pressButton(GbButton button) {
-    _binding.press_button(_emulator, button.val);
+    FFIBinding.binding.press_button(_emulator, button.val);
   }
 
   void releaseButton(GbButton button) {
-    _binding.release_button(_emulator, button.val);
+    FFIBinding.binding.release_button(_emulator, button.val);
   }
 
   void updateWindowBuffer() async {
     final c = Completer<ui.Image>();
     final bufferSize = (_windowWidth * _windowHeight).toInt();
     final pixels =
-        _binding.get_window_buffer(_emulator).asTypedList(bufferSize);
+        FFIBinding.binding.get_window_buffer(_emulator).asTypedList(bufferSize);
     void decodeCallback(ui.Image image) {
       c.complete(image);
     }

@@ -2,7 +2,6 @@ use std::cell::RefCell;
 use std::path::Path;
 use std::rc::Rc;
 
-use crate::tools::logger::Logger;
 use crate::core::memory::Memory;
 use crate::core::mmunit::MMUnit;
 use crate::core::rtc::RTC;
@@ -11,7 +10,6 @@ use crate::core::rtc::RTC;
 pub struct MotherBoard {
     pub mmu: Rc<RefCell<MMUnit>>,
     pub rtc: RTC,
-    log: Logger,
 }
 
 impl MotherBoard {
@@ -21,7 +19,6 @@ impl MotherBoard {
         Self {
             mmu,
             rtc,
-            log: Logger::power_up("motherboard.txt", false),
         }
     }
 
@@ -31,7 +28,6 @@ impl MotherBoard {
         }
         let cycles = self.rtc.next();
         self.mmu.borrow_mut().next(cycles);
-        self.log.i(format!("Cost {} cycles\n", cycles));
         cycles
     }
 
