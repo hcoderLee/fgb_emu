@@ -6,7 +6,7 @@ use crate::core::apu::APU;
 use crate::core::cartridge;
 use crate::core::cartridge::Cartridge;
 use crate::core::convention::Term;
-use crate::core::dma::{DMA, DMAMode};
+use crate::core::dma::{DMAMode, DMA};
 use crate::core::gpu::GPU;
 use crate::core::hram::HRAM;
 use crate::core::intf::Intf;
@@ -49,8 +49,8 @@ pub struct MMUnit {
 }
 
 impl MMUnit {
-    pub fn power_up(path: impl AsRef<Path>) -> Self {
-        let cartridge = cartridge::power_up(path);
+    pub fn power_up<T: AsRef<Path>>(path: T, save_path: T) -> Self {
+        let cartridge = cartridge::power_up(path, save_path);
         let term = cartridge.term();
         let intf = Rc::new(RefCell::new(Intf::power_up()));
         let mut mmunit = Self {
@@ -240,10 +240,11 @@ impl Memory for MMUnit {
             // 中断
             0xff0f => self.intf.borrow_mut().data = v,
             // 音频
-            0xff10..=0xff3f =>
+            0xff10..=0xff3f => {
                 if let Some(apu) = &mut self.apu {
                     apu.set(a, v);
                 }
+            }
             0xff46 => {
                 // 写入此寄存器将触发DMA数据传输
                 //  Source:      XX00-XX9F   ;XX in range from 00-F1h

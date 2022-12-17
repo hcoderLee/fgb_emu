@@ -13,13 +13,10 @@ pub struct MotherBoard {
 }
 
 impl MotherBoard {
-    pub fn power_up(path: impl AsRef<Path>) -> Self {
-        let mmu = Rc::new(RefCell::new(MMUnit::power_up(path)));
+    pub fn power_up<T: AsRef<Path>>(path: T, save_path: T) -> Self {
+        let mmu = Rc::new(RefCell::new(MMUnit::power_up(path, save_path)));
         let rtc = RTC::power_up(mmu.borrow().term, mmu.clone());
-        Self {
-            mmu,
-            rtc,
-        }
+        Self { mmu, rtc }
     }
 
     pub fn next(&mut self) -> u32 {

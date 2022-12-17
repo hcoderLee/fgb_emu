@@ -1,9 +1,9 @@
-use std::fs::File;
-use std::io::prelude::*;
-use std::time::SystemTime;
-use std::path::{Path, PathBuf};
-use crate::core::memory::Memory;
 use crate::core::convention::Term;
+use crate::core::memory::Memory;
+use std::fs::{create_dir_all, File};
+use std::io::prelude::*;
+use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 pub struct RomOnly {
     rom: Vec<u8>,
@@ -12,7 +12,6 @@ pub struct RomOnly {
 pub trait Stable {
     fn save(&self);
 }
-
 
 impl RomOnly {
     pub fn power_up(rom: Vec<u8>) -> Self {
@@ -107,9 +106,6 @@ impl Memory for Mbc1 {
             }
             0x0000..=0x1fff => {
                 self.ram_enable = v & 0x0f == 0x0a;
-                if !self.ram_enable {
-                    self.save();
-                }
             }
             0x2000..=0x3fff => {
                 let mut n = v & 0x1f;
@@ -138,9 +134,7 @@ impl Stable for Mbc1 {
             return;
         }
 
-        File::create(self.save_path.clone())
-            .and_then(|mut f| f.write_all(&self.ram))
-            .unwrap()
+        save_bytes(&self.save_path, &self.ram);
     }
 }
 
@@ -191,7 +185,7 @@ impl Memory for Mbc2 {
                     self.ram[(a - 0xa000) as usize] = v;
                 }
             }
-            0x000..=0x1fff => {
+            0x0000..=0x1fff => {
                 if a & 0x0100 == 0 {
                     self.ram_enable = v == 0x0a;
                 }
@@ -211,9 +205,7 @@ impl Stable for Mbc2 {
         if self.save_path.to_str().unwrap().is_empty() {
             return;
         }
-        File::create(self.save_path.clone())
-            .and_then(|mut f| f.write_all(&self.ram))
-            .unwrap();
+        save_bytes(&self.save_path, &self.ram)
     }
 }
 
@@ -224,12 +216,12 @@ struct RealTimeClock {
     dl: u8,
     dh: u8,
     zero: u64,
-    sav_path: PathBuf,
+    save_path: PathBuf,
 }
 
 impl RealTimeClock {
-    fn power_up(sav_path: impl AsRef<Path>) -> Self {
-        let zero = match std::fs::read(sav_path.as_ref()) {
+    fn power_up(save_path: impl AsRef<Path>) -> Self {
+        let zero = match std::fs::read(save_path.as_ref()) {
             Ok(v) => {
                 let mut b: [u8; 8] = Default::default();
                 b.copy_from_slice(&v);
@@ -238,7 +230,7 @@ impl RealTimeClock {
             Err(_) => SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
-                .as_secs()
+                .as_secs(),
         };
         RealTimeClock {
             s: 0,
@@ -247,7 +239,7 @@ impl RealTimeClock {
             dl: 0,
             dh: 0,
             zero,
-            sav_path: sav_path.as_ref().to_path_buf(),
+            save_path: save_path.as_ref().to_path_buf(),
         }
     }
 
@@ -255,7 +247,8 @@ impl RealTimeClock {
         let d = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
-            .as_secs() - self.zero;
+            .as_secs()
+            - self.zero;
         self.s = (d % 60) as u8;
         self.m = (d / 60 % 60) as u8;
         self.h = (d / 3600 % 24) as u8;
@@ -295,12 +288,10 @@ impl Memory for RealTimeClock {
 
 impl Stable for RealTimeClock {
     fn save(&self) {
-        if self.sav_path.to_str().unwrap().is_empty() {
+        if self.save_path.to_str().unwrap().is_empty() {
             return;
         }
-        File::create(self.sav_path.clone())
-            .and_then(|mut f| f.write_all(&self.zero.to_be_bytes()))
-            .unwrap();
+        save_bytes(&self.save_path, &self.zero.to_be_bytes());
     }
 }
 
@@ -311,7 +302,7 @@ struct Mbc3 {
     ram_bank: usize,
     ram_enable: bool,
     rtc: RealTimeClock,
-    sav_path: PathBuf,
+    save_path: PathBuf,
 }
 
 impl Mbc3 {
@@ -323,7 +314,7 @@ impl Mbc3 {
             ram_bank: 0,
             ram_enable: false,
             rtc: RealTimeClock::power_up(rtc.as_ref().to_path_buf()),
-            sav_path: sav.as_ref().to_path_buf(),
+            save_path: sav.as_ref().to_path_buf(),
         }
     }
 }
@@ -388,12 +379,10 @@ impl Memory for Mbc3 {
 impl Stable for Mbc3 {
     fn save(&self) {
         self.rtc.save();
-        if self.sav_path.to_str().unwrap().is_empty() {
+        if self.save_path.to_str().unwrap().is_empty() {
             return;
         }
-        File::create(self.sav_path.clone())
-            .and_then(|mut f| f.write_all(&self.ram))
-            .unwrap();
+        save_bytes(&self.save_path, &self.ram);
     }
 }
 
@@ -403,7 +392,7 @@ struct Mbc5 {
     rom_bank: usize,
     ram_bank: usize,
     ram_enable: bool,
-    sav_path: PathBuf,
+    save_path: PathBuf,
 }
 
 impl Mbc5 {
@@ -414,7 +403,7 @@ impl Mbc5 {
             rom_bank: 1,
             ram_bank: 0,
             ram_enable: false,
-            sav_path: PathBuf::from(sav.as_ref()),
+            save_path: PathBuf::from(sav.as_ref()),
         }
     }
 }
@@ -449,7 +438,9 @@ impl Memory for Mbc5 {
             }
             0x0000..=0x1fff => self.ram_enable = (b & 0x0f) == 0x0a,
             0x2000..=0x2fff => self.rom_bank = (self.rom_bank & 0x0100) | b as usize,
-            0x3000..=0x3fff => self.rom_bank = (self.rom_bank & 0x00ff) | ((b as usize & 0x01) << 8),
+            0x3000..=0x3fff => {
+                self.rom_bank = (self.rom_bank & 0x00ff) | ((b as usize & 0x01) << 8)
+            }
             0x4000..=0x5fff => self.ram_bank = b as usize & 0x0f,
             _ => {}
         }
@@ -458,12 +449,10 @@ impl Memory for Mbc5 {
 
 impl Stable for Mbc5 {
     fn save(&self) {
-        if self.sav_path.to_str().unwrap().is_empty() {
+        if self.save_path.to_str().unwrap().is_empty() {
             return;
         }
-        File::create(self.sav_path.clone())
-            .and_then(|mut f| f.write_all(&self.ram))
-            .unwrap();
+        save_bytes(&self.save_path, &self.ram);
     }
 }
 
@@ -472,7 +461,11 @@ pub trait Cartridge: Memory + Stable + Send {
     fn title(&self) -> String {
         let mut buf = String::new();
         let ic = 0x0134;
-        let oc = if self.get(0x0143) == 0x80 { 0x013e } else { 0x0143 };
+        let oc = if self.get(0x0143) == 0x80 {
+            0x013e
+        } else {
+            0x0143
+        };
         for i in ic..oc {
             match self.get(i) {
                 0 => break,
@@ -492,7 +485,7 @@ pub trait Cartridge: Memory + Stable + Send {
 }
 
 // 初始化卡带
-pub fn power_up(path: impl AsRef<Path>) -> Box<dyn Cartridge> {
+pub fn power_up<T: AsRef<Path>>(path: T, save_path: T) -> Box<dyn Cartridge> {
     let mut f = File::open(path.as_ref()).unwrap();
     let mut rom = vec![];
     f.read_to_end(&mut rom).unwrap();
@@ -503,6 +496,11 @@ pub fn power_up(path: impl AsRef<Path>) -> Box<dyn Cartridge> {
     if rom.len() > rom_max {
         panic!("Rom size more than: {}", rom_max)
     }
+
+    // The path to file where save game ram data
+    let ram_save_path = save_path.as_ref().join("ram");
+    // The path to file where save game rtc data
+    let rtc_save_path = save_path.as_ref().join("rtc");
     let cart: Box<dyn Cartridge> = match rom[0x0147] {
         0x00 => Box::new(RomOnly::power_up(rom)),
         0x01 => Box::new(Mbc1::power_up(rom, vec![], "")),
@@ -512,9 +510,8 @@ pub fn power_up(path: impl AsRef<Path>) -> Box<dyn Cartridge> {
         }
         0x03 => {
             let ram_max = ram_size(rom[0x149]);
-            let sav_path = path.as_ref().with_extension("sav");
-            let ram = ram_read(sav_path.clone(), ram_max);
-            Box::new(Mbc1::power_up(rom, ram, sav_path))
+            let ram = ram_read(ram_save_path.clone(), ram_max);
+            Box::new(Mbc1::power_up(rom, ram, ram_save_path))
         }
         0x05 => {
             let ram_max = 512;
@@ -522,21 +519,14 @@ pub fn power_up(path: impl AsRef<Path>) -> Box<dyn Cartridge> {
         }
         0x06 => {
             let ram_max = 512;
-            let sav_path = path.as_ref().with_extension("sav");
-            let ram = ram_read(sav_path.clone(), ram_max);
-            Box::new(Mbc2::power_up(rom, ram, sav_path))
+            let ram = ram_read(ram_save_path.clone(), ram_max);
+            Box::new(Mbc2::power_up(rom, ram, ram_save_path))
         }
-        0x0f => {
-            let sav_path = path.as_ref().with_extension("sav");
-            let rtc_path = path.as_ref().with_extension("rtc");
-            Box::new(Mbc3::power_up(rom, vec![], sav_path, rtc_path))
-        }
+        0x0f => Box::new(Mbc3::power_up(rom, vec![], ram_save_path, rtc_save_path)),
         0x10 => {
-            let sav_path = path.as_ref().with_extension("sav");
-            let rtc_path = path.as_ref().with_extension("rtc");
             let ram_max = ram_size(rom[0x149]);
-            let ram = ram_read(sav_path.clone(), ram_max);
-            Box::new(Mbc3::power_up(rom, ram, sav_path, rtc_path))
+            let ram = ram_read(ram_save_path.clone(), ram_max);
+            Box::new(Mbc3::power_up(rom, ram, ram_save_path, rtc_save_path))
         }
         0x11 => Box::new(Mbc3::power_up(rom, vec![], "", "")),
         0x12 => {
@@ -545,9 +535,8 @@ pub fn power_up(path: impl AsRef<Path>) -> Box<dyn Cartridge> {
         }
         0x13 => {
             let ram_max = ram_size(rom[0x149]);
-            let sav_path = path.as_ref().with_extension("sav");
-            let ram = ram_read(sav_path.clone(), ram_max);
-            Box::new(Mbc3::power_up(rom, ram, sav_path, ""))
+            let ram = ram_read(ram_save_path.clone(), ram_max);
+            Box::new(Mbc3::power_up(rom, ram, ram_save_path, ""))
         }
         0x19 => Box::new(Mbc5::power_up(rom, vec![], "")),
         0x1a => {
@@ -556,14 +545,19 @@ pub fn power_up(path: impl AsRef<Path>) -> Box<dyn Cartridge> {
         }
         0x1b => {
             let ram_max = ram_size(rom[0x149]);
-            let sav_path = path.as_ref().with_extension("sav");
-            let ram = ram_read(sav_path.clone(), ram_max);
-            Box::new(Mbc5::power_up(rom, ram, sav_path))
+            let ram = ram_read(ram_save_path.clone(), ram_max);
+            Box::new(Mbc5::power_up(rom, ram, ram_save_path))
         }
         n => panic!("Unsupported cartridge type: {:#04x}", n),
     };
     println!("Cartridge title: {}", cart.title());
     println!("Cartridge type: {}", mbc_info(cart.as_ref()));
+    log::info!(
+        "Load cartridge {} from {}, type: {}",
+        cart.title(),
+        path.as_ref().to_string_lossy(),
+        mbc_info(cart.as_ref())
+    );
     ensure_header_checksum(cart.as_ref());
     ensure_logo(cart.as_ref());
     cart
@@ -605,12 +599,10 @@ fn mbc_info(cart: &dyn Cartridge) -> String {
     })
 }
 
-
 const NINTENDO_LOGO: [u8; 48] = [
-    0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83,
-    0x00, 0x0C, 0x00, 0x0D, 0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E,
-    0xDC, 0xCC, 0x6E, 0xE6, 0xDD, 0xDD, 0xD9, 0x99, 0xBB, 0xBB, 0x67, 0x63,
-    0x6E, 0x0E, 0xEC, 0xCC, 0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E,
+    0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83, 0x00, 0x0C, 0x00, 0x0D,
+    0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E, 0xDC, 0xCC, 0x6E, 0xE6, 0xDD, 0xDD, 0xD9, 0x99,
+    0xBB, 0xBB, 0x67, 0x63, 0x6E, 0x0E, 0xEC, 0xCC, 0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E,
 ];
 
 // 验证任天堂logo
@@ -675,6 +667,22 @@ fn ram_read(sav: impl AsRef<Path>, size: usize) -> Vec<u8> {
             ram
         }
         Err(_) => vec![0; size],
+    }
+}
+
+/// Save bytes to local file
+fn save_bytes(path: &PathBuf, bytes: &[u8]) {
+    log::info!("Save bytes to {}", path.to_string_lossy());
+    if let Some(p) = path.parent() {
+        // Create parent directory if it doesn't exist
+        if let Err(err) = create_dir_all(p) {
+            log::error!("Create dir {} error: {}", p.to_string_lossy(), err);
+            return;
+        }
+    }
+    let res = File::create(path.clone()).and_then(|mut f| f.write_all(bytes));
+    if let Err(err) = res {
+        log::error!("Save bytes error: {}", err)
     }
 }
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui' as ui;
 import 'dart:ffi' as ffi;
 
@@ -6,6 +7,8 @@ import 'package:ffi/ffi.dart';
 import 'package:fgb_emu/src/ffi/ffi_binding.dart';
 import 'package:fgb_emu/src/utils/logger.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../ffi/native_binding.dart';
 
@@ -59,6 +62,13 @@ class GbEmulator {
 
   ui.Image? get buffer => _buffer;
 
+  SharedPreferences? _pref;
+
+  Future<SharedPreferences> get pref async {
+    _pref ??= await SharedPreferences.getInstance();
+    return _pref!;
+  }
+
   GbEmulator({
     required this.gamePath,
   }) {
@@ -77,10 +87,12 @@ class GbEmulator {
     _emulator = FFIBinding.binding.create_emulator(_windowConfig);
   }
 
-  void run() {
+  void run() async {
+    final saveDir = await findSaveDir();
     FFIBinding.binding.run_emulator(
       _emulator,
       gamePath.toNativeUtf8().cast(),
+      saveDir.toNativeUtf8().cast(),
     );
   }
 
@@ -125,6 +137,31 @@ class GbEmulator {
     final newBuffer = await c.future;
     _buffer = newBuffer;
     _notifier.notifyBufferUpdate();
+  }
+
+  /// Get the directory where to save game data (e.g. ram, rtc)
+  Future<String> findSaveDir() async {
+    final saveDir = (await pref).getString(gamePath);
+    if (saveDir != null) {
+      // Game have been saved before
+      return saveDir;
+    }
+    // Game have not been saved, create a new save directory
+    final start = gamePath.lastIndexOf('/') + 1;
+    final end = gamePath.lastIndexOf('.');
+    assert(start != -1 && end != -1 && end > start);
+    // Game name without extension (like .gb and .gbc)
+    final gameName = gamePath.substring(start, end);
+    final appDocDir = await getApplicationDocumentsDirectory();
+    var newSaveDir = "${appDocDir.path}/game/$gameName";
+    var suffix = 1;
+    // Solve file conflict (different rom path refer to same game)
+    while (await File(newSaveDir).exists()) {
+      // Increase suffix until file is not exist
+      newSaveDir = "${newSaveDir}_$suffix";
+      suffix++;
+    }
+    return newSaveDir;
   }
 }
 

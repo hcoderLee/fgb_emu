@@ -21,7 +21,7 @@ typedef struct
 
 Emulator_C *create_emulator(WindowConfig *win_config);
 
-void run_emulator(Emulator_C *emulator, char *rom_path);
+void run_emulator(Emulator_C *emulator, char *rom_path, char *save_path);
 
 uint32_t *get_window_buffer(Emulator_C *emulator);
 

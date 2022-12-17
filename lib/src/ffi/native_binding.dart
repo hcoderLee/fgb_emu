@@ -37,19 +37,22 @@ class NativeBinding {
   void run_emulator(
     ffi.Pointer<Emulator_C> emulator,
     ffi.Pointer<ffi.Char> rom_path,
+    ffi.Pointer<ffi.Char> save_path,
   ) {
     return _run_emulator(
       emulator,
       rom_path,
+      save_path,
     );
   }
 
   late final _run_emulatorPtr = _lookup<
       ffi.NativeFunction<
-          ffi.Void Function(
-              ffi.Pointer<Emulator_C>, ffi.Pointer<ffi.Char>)>>('run_emulator');
+          ffi.Void Function(ffi.Pointer<Emulator_C>, ffi.Pointer<ffi.Char>,
+              ffi.Pointer<ffi.Char>)>>('run_emulator');
   late final _run_emulator = _run_emulatorPtr.asFunction<
-      void Function(ffi.Pointer<Emulator_C>, ffi.Pointer<ffi.Char>)>();
+      void Function(ffi.Pointer<Emulator_C>, ffi.Pointer<ffi.Char>,
+          ffi.Pointer<ffi.Char>)>();
 
   ffi.Pointer<ffi.Uint32> get_window_buffer(
     ffi.Pointer<Emulator_C> emulator,

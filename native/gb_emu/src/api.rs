@@ -1,8 +1,8 @@
-use std::ffi::CStr;
-use std::os::raw::c_char;
 use crate::device::emulator::Emulator;
 use crate::device::keyboard::GbBtn;
 use crate::device::window::WindowConfig;
+use std::ffi::CStr;
+use std::os::raw::c_char;
 use std::thread::{self, JoinHandle};
 
 static mut RUNNING_EMU: Option<JoinHandle<()>> = None;
@@ -15,17 +15,23 @@ pub extern "C" fn create_emulator(win_config: *const WindowConfig) -> *mut Emula
 }
 
 #[no_mangle]
-pub extern "C" fn run_emulator(emulator: *mut Emulator, rom_path: *const c_char) {
+pub extern "C" fn run_emulator(
+    emulator: *mut Emulator,
+    rom_path: *const c_char,
+    save_path: *const c_char,
+) {
     unsafe {
         let c_str = CStr::from_ptr(rom_path);
-        let path = c_str.to_str().unwrap();
+        let rom_path = c_str.to_str().unwrap();
+        let c_str = CStr::from_ptr(save_path);
+        let save_path = c_str.to_str().unwrap();
         let emulator = &mut *emulator;
         if emulator.is_running() {
             return;
         }
 
         RUNNING_EMU = Some(thread::spawn(move || {
-            emulator.run(path);
+            emulator.run(rom_path, save_path);
         }));
     }
 }

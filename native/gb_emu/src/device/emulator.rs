@@ -1,10 +1,10 @@
+use crate::core::convention::{SCREEN_H, SCREEN_W};
+use crate::core::motherboard::MotherBoard;
+use crate::device::keyboard::{GbBtn, Keyboard, KEY_MAPS};
+use crate::device::window::{Window, WindowConfig};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::thread::Thread;
-use crate::core::convention::{SCREEN_H, SCREEN_W};
-use crate::core::motherboard::MotherBoard;
-use crate::device::keyboard::{GbBtn, KEY_MAPS, Keyboard};
-use crate::device::window::{Window, WindowConfig};
 
 pub struct Emulator {
     window: Window,
@@ -24,7 +24,7 @@ impl Emulator {
     }
 
     // This method will called in new thread
-    pub fn run(&mut self, rom_path: &str) {
+    pub fn run(&mut self, rom_path: &str, save_path: &str) {
         if self.is_running.load(Ordering::Acquire) {
             log::warn!("{} is already running", rom_path);
             return;
@@ -33,12 +33,13 @@ impl Emulator {
         log::info!("Running {}", rom_path);
         self.is_running.store(true, Ordering::Release);
         // 主板，用于管理cpu和各种外设
-        let mut mbrd = MotherBoard::power_up(&*rom_path);
+        let mut mbrd = MotherBoard::power_up(rom_path, save_path);
         // 初始化音频播放
         // initialize_audio(&mbrd);
 
         // 屏幕显示的像素数据，初始化为纯黑的背景
-        let mut win_buf: Vec<u32> = vec![0x00; (u32::from(SCREEN_W) * u32::from(SCREEN_H)) as usize];
+        let mut win_buf: Vec<u32> =
+            vec![0x00; (u32::from(SCREEN_W) * u32::from(SCREEN_H)) as usize];
 
         // 设置第一帧画面
         self.window.update_buffer(&win_buf);
@@ -86,8 +87,10 @@ impl Emulator {
             }
         }
 
+        let cartridge = &mbrd.mmu.borrow().cartridge;
+        log::info!("Save game {}", cartridge.title());
         // 保存游戏数据
-        mbrd.mmu.borrow_mut().cartridge.save();
+        cartridge.save();
     }
 
     pub fn is_running(&self) -> bool {
