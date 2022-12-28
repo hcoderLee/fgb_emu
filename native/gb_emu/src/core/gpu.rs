@@ -2,10 +2,10 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::core::convention::{SCREEN_H, SCREEN_W, Term};
+use crate::core::convention::{Term, SCREEN_H, SCREEN_W};
 use crate::core::gpu::GPUMode::{HBlank, SearchOAM, Tran2Driver, VBlank};
-use crate::core::intf::Intf;
 use crate::core::intf::INTFlag;
+use crate::core::intf::Intf;
 use crate::core::memory::Memory;
 
 /// GB模式下4种灰度所对应的rgb值
@@ -284,8 +284,8 @@ impl PaletteData {
 }
 
 pub struct GPU {
-    /// 屏幕的像素数据，采用RGB模式
-    pub data: [[[u8; 3]; SCREEN_W as usize]; SCREEN_H as usize],
+    /// 屏幕的像素数据，采用ARGB模式
+    pub data: [[u32; SCREEN_W as usize]; SCREEN_H as usize],
     /// 用来记录LCDStat中断
     pub intf: Rc<RefCell<Intf>>,
     /// GB型号
@@ -359,7 +359,7 @@ pub struct GPU {
 impl GPU {
     pub fn power_up(term: Term, intf: Rc<RefCell<Intf>>) -> Self {
         Self {
-            data: [[[0xff; 3]; SCREEN_W as usize]; SCREEN_H as usize],
+            data: [[0xffffffff; SCREEN_W as usize]; SCREEN_H as usize],
             intf,
             term,
             h_blank: false,
@@ -429,7 +429,7 @@ impl GPU {
         self.ly = 0;
         self.lcds.mode = HBlank;
         // 重置像素数据
-        self.data = [[[0xffu8; 3]; SCREEN_W as usize]; SCREEN_H as usize];
+        self.data = [[0xffffffff; SCREEN_W as usize]; SCREEN_H as usize];
         self.v_blank = true;
     }
 
@@ -557,9 +557,7 @@ trait Render {
         // wx-7为真实的window水平偏移量
         let wx = gpu.wx.wrapping_sub(7);
         // 当前点是否处于window区域内
-        let in_win = gpu.lcdc.window_enable()
-            && gpu.ly >= gpu.wy
-            && sx as u8 >= wx;
+        let in_win = gpu.lcdc.window_enable() && gpu.ly >= gpu.wy && sx as u8 >= wx;
         // 当前像素点的横向偏移量
         let x: u8;
         // 当前像素点的纵向偏移量
@@ -570,8 +568,7 @@ trait Render {
         let t_col: u8;
         // tmap_base保存TileMap内存区域的起始地址（背景和Window使用不同的TileMap）
         let tmap_base: u16;
-        if gpu.lcdc.window_enable()
-            && gpu.ly >= gpu.wy {
+        if gpu.lcdc.window_enable() && gpu.ly >= gpu.wy {
             y = gpu.ly - gpu.wy;
         } else {
             y = gpu.scy.wrapping_add(gpu.ly);
@@ -580,7 +577,11 @@ trait Render {
             // Window TileMap根据像素点在Window内的偏移来定位Tile
             x = sx as u8 - wx;
             // 根据LCDC寄存器的第6位来决定Window TileMap的起始地址
-            tmap_base = if gpu.lcdc.win_tm_sel() { 0x9c00 } else { 0x9800 };
+            tmap_base = if gpu.lcdc.win_tm_sel() {
+                0x9c00
+            } else {
+                0x9800
+            };
         } else {
             // 背景TileMap根据像素点在背景中的偏移来定位Tile
             x = gpu.scx.wrapping_add(sx as u8);
@@ -699,7 +700,11 @@ trait Render {
 
     /// Sprite的高度，一个Sprite可能是一个Tile， 也可能是两个纵向排列的Tile组成，由LCDC寄存器的第2位决定
     fn _sprite_height(&self, gpu: &mut GPU) -> u8 {
-        if gpu.lcdc.obj_h_16() { 16 } else { 8 }
+        if gpu.lcdc.obj_h_16() {
+            16
+        } else {
+            8
+        }
     }
 
     /// 是否允许绘制Sprite
@@ -727,7 +732,11 @@ impl GBRender {
     /// bgp: 参考BGP寄存器的数据结构
     /// i: 灰度值编号，0-3
     fn _get_gray_shades(&self, bgp: u8, i: usize) -> GrayShades {
-        assert!(i < 4, "Invalid gray shade number {}, it has to be at range [0, 3]", i);
+        assert!(
+            i < 4,
+            "Invalid gray shade number {}, it has to be at range [0, 3]",
+            i
+        );
         match (bgp >> (i * 2)) & 0x03 {
             0x00 => GrayShades::White,
             0x01 => GrayShades::Light,
@@ -738,7 +747,8 @@ impl GBRender {
 
     /// 将指定像素点的灰度值填充到屏幕像素数据中
     fn _set_gray(&mut self, gpu: &mut GPU, x: usize, g: u8) {
-        gpu.data[gpu.ly as usize][x] = [g, g, g];
+        let g = g as u32;
+        gpu.data[gpu.ly as usize][x] = 0xff00_0000 | g << 16 | g << 8 | g;
     }
 }
 
@@ -791,7 +801,11 @@ impl Render for GBRender {
 
             let oty = gpu.ly.wrapping_sub(sy);
             // 要绘制的点在Sprite中的纵坐标（考虑到是否垂直翻转该Sprite）
-            let ty = if attr.flip_y { sprite_height - 1 - oty } else { oty };
+            let ty = if attr.flip_y {
+                sprite_height - 1 - oty
+            } else {
+                oty
+            };
             // 要绘制的点所处的Tile行的内存地址，在全局Tile列表中查找Sprite，只有8000这一种寻址模式
             let tr_addr = 0x8000 + t_num as u16 * 16 + ty as u16 * 2;
             // 要绘制像素点数据的第1个字节
@@ -832,7 +846,11 @@ impl Render for GBRender {
                 }
 
                 // 从调色板中获取实际的颜色并向屏幕数据区域填充该像素的rgb数据
-                let palette = if attr.pal_num == 1 { gpu.obp1 } else { gpu.obp0 };
+                let palette = if attr.pal_num == 1 {
+                    gpu.obp1
+                } else {
+                    gpu.obp0
+                };
                 let gray = self._get_gray_shades(palette, color_num) as u8;
                 self._set_gray(gpu, px as usize, gray);
             }
@@ -851,7 +869,6 @@ struct CGBRender {
     _bg_colors: [u8; SCREEN_W as usize],
     /// 记录一行中的点是否被绘制过Sprite，用于处理多个Sprites重叠的问题
     _draws: HashMap<u8, bool>,
-
 }
 
 impl CGBRender {
@@ -866,21 +883,32 @@ impl CGBRender {
     /// 将指定像素点的rgb值填充到屏幕像素数据中
     fn _set_rgb(&self, gpu: &mut GPU, x: usize, r: u8, g: u8, b: u8) {
         // 原始rgb数据每个通道只有5位，只能表示0到32
-        assert!(r <= 0x1f, "Invalid red channel {:#04x}, it has to be at range [0x00, 0x1f]", r);
-        assert!(g <= 0x1f, "Invalid green channel {:#04x}, it has to be at range [0x00, 0x1f]", r);
-        assert!(b <= 0x1f, "Invalid blue channel {:#04x}, it has to be at range [0x00, 0x1f]", r);
+        assert!(
+            r <= 0x1f,
+            "Invalid red channel {:#04x}, it has to be at range [0x00, 0x1f]",
+            r
+        );
+        assert!(
+            g <= 0x1f,
+            "Invalid green channel {:#04x}, it has to be at range [0x00, 0x1f]",
+            r
+        );
+        assert!(
+            b <= 0x1f,
+            "Invalid blue channel {:#04x}, it has to be at range [0x00, 0x1f]",
+            r
+        );
         // 将原始的0~32的色彩通道范围拉伸到0~255
         let r = u32::from(r);
         let g = u32::from(g);
         let b = u32::from(b);
         // 非线性的拉伸算法，产生的结果对人眼比较友好
-        let lr = ((r * 13 + g * 2 + b) >> 1) as u8;
-        let lg = ((g * 3 + b) << 1) as u8;
-        let lb = ((r * 3 + g * 2 + b * 11) >> 1) as u8;
-        gpu.data[gpu.ly as usize][x] = [lr, lg, lb];
+        let lr = ((r * 13 + g * 2 + b) >> 1) & 0xff;
+        let lg = (((g * 3 + b) << 1) & 0xff) << 8;
+        let lb = (((r * 3 + g * 2 + b * 11) >> 1) & 0xff) << 16;
+        gpu.data[gpu.ly as usize][x] = 0xff00_0000 | lr | lg | lb;
     }
 }
-
 
 impl Render for CGBRender {
     /// 彩色模式下绘制一行背景
@@ -947,7 +975,11 @@ impl Render for CGBRender {
             }
             let oty = gpu.ly.wrapping_sub(sy);
             // 要绘制的点在Sprite中的纵坐标（考虑到是否垂直翻转该Sprite）
-            let ty = if attr.flip_y { sprite_height - 1 - oty } else { oty };
+            let ty = if attr.flip_y {
+                sprite_height - 1 - oty
+            } else {
+                oty
+            };
             // let ty = if attr.flip_y { sprite_height - 1 - (gpu.ly - sy) } else { gpu.ly - sy };
             // 要绘制的点所处的Tile行的内存地址，在全局Tile列表中查找Sprite，只有8000这一种寻址模式
             let tr_addr = 0x8000 + t_num as u16 * 16 + ty as u16 * 2;

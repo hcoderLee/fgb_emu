@@ -1,10 +1,11 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread;
+use std::thread::Thread;
+
 use crate::core::convention::{SCREEN_H, SCREEN_W};
 use crate::core::motherboard::MotherBoard;
 use crate::device::keyboard::{GbBtn, Keyboard, KEY_MAPS};
 use crate::device::window::{Window, WindowConfig};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread;
-use std::thread::Thread;
 
 pub struct Emulator {
     window: Window,
@@ -38,9 +39,7 @@ impl Emulator {
         // initialize_audio(&mbrd);
 
         // 屏幕显示的像素数据，初始化为纯黑的背景
-        let mut win_buf: Vec<u32> =
-            vec![0x00; (u32::from(SCREEN_W) * u32::from(SCREEN_H)) as usize];
-
+        let mut win_buf = vec![0x00; (u32::from(SCREEN_W) * u32::from(SCREEN_H)) as usize];
         // 设置第一帧画面
         self.window.update_buffer(&win_buf);
 
@@ -58,17 +57,7 @@ impl Emulator {
             // 在发生vblank时刷新屏幕数据
             if mbrd.check_and_reset_gpu_updated() {
                 // 刷新要显示的数据
-                let mut i: usize = 0;
-                for r in (*mbrd.mmu).borrow().gpu.data.iter() {
-                    for c in r {
-                        let b = u32::from(c[0]);
-                        let g = u32::from(c[1]) << 8;
-                        let r = u32::from(c[2]) << 16;
-                        let a: u32 = 0xff00_0000;
-                        win_buf[i] = a | r | g | b;
-                        i += 1;
-                    }
-                }
+                win_buf = (*mbrd.mmu).borrow().gpu.data.concat();
                 // 上屏
                 self.window.update_buffer(&win_buf);
             }
@@ -123,7 +112,7 @@ impl Emulator {
         log::info!("Release {} button", btn);
     }
 
-    pub fn get_window_buffer(&self) -> &Vec<u32> {
-        &self.window.buffer
+    pub fn get_window_buffer(&mut self) -> &[u32] {
+        &self.window.get_buffer()
     }
 }
