@@ -1,0 +1,90 @@
+[env]
+CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
+CARGO_MAKE_WORKSPACE_INCLUDE_MEMBERS = ["native/gb_emu"]
+# Is build debug
+DEV = true
+# Is build release
+RELEASE = false
+# Android jni lib directory
+JNI_DIR = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/android/src/main/jniLibs"
+# The directory for build targets
+TARGET_DIR = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target"
+
+[env.release]
+DEV = false
+RELEASE = true
+
+# Build rust project. This task will be runing on Window or Linux, so it only build Android target
+[tasks.build]
+clear = true
+run_task = { name = ["android"], parallel = true }
+
+# Build rust project. This task will be runing on Mac, so it will build Android and iOS target
+[tasks.build.mac]
+run_task = { name = ["android"], parallel = true }
+
+# Build android native lib
+[tasks.android]
+description = "Build android native lib lib${CARGO_MAKE_CRATE_FS_NAME}.so "
+category = "Build"
+run_task = { name = ["android-aarch64", "android-aarch64-release", "android-armv7", "android-armv7-release"], parallel = true }
+
+# Build Android native library for arm64-v8a debug
+[tasks.android-aarch64]
+description = "Build Android native lib for arm64-v8a"
+category = "Build"
+condition = { env_true = ["DEV"] }
+install_crate = { rustup_component_name = "rust-std-aarch64-linux-android" }
+command = "cargo"
+args = [
+    "ndk",
+    "-t",
+    "aarch64-linux-android",
+    "-o",
+    "${JNI_DIR}",
+    "build",
+]
+
+# Build Android native library for arm64-v8a release
+[tasks.android-aarch64-release]
+extend = "android-aarch64"
+condition = { env_true = ["RELEASE"] }
+args = [
+    "ndk",
+    "-t",
+    "arm64-v8a",
+    "-o",
+    "${JNI_DIR}",
+    "build",
+    "--release"
+]
+
+# Build Android native library for arm-v7 debug
+[tasks.android-armv7]
+description = "Build Android native lib for arm-v7"
+category = "Build"
+condition = { env_true = ["DEV"] }
+install_crate = { rustup_component_name = "rust-std-armv7-linux-androideabi" }
+command = "cargo"
+args = [
+    "ndk",
+    "-t",
+    "armeabi-v7a",
+    "-o",
+    "${JNI_DIR}",
+    "build",
+]
+
+# Build Android native library for arm-v7 release
+[tasks.android-armv7-release]
+extend = "android-armv7"
+condition = { env_true = ["RELEASE"] }
+args = [
+    "ndk",
+    "-t",
+    "armeabi-v7a",
+    "-o",
+    "${JNI_DIR}",
+    "build",
+    "--release",
+]

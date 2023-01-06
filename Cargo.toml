@@ -1,0 +1,7 @@
+[workspace]
+members = ["native/gb_emu"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = 'abort'
